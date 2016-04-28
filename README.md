@@ -1,2 +1,3 @@
-# BLAST_TNG_devel
-BLAST-TNG firmware and software development
+# blastfirmware
+The BLAST-TNG Firmware and Control Software Repository
+# pulse_counter
