@@ -7,12 +7,10 @@ matplotlib.use("TkAgg")
 import casperfpga
 
 class FirmwareSnaps(object):
-    
     	def __init__(self):
 		self.fpga = casperfpga.katcp_fpga.KatcpFpga("192.168.40.52",timeout=120.)
-		#self.dds_shift = 305
 		self.dds_shift = 305
-		self.accum_len = 2**20 
+		self.accum_len = 2**19 
 	
     	def menu(self,prompt,options):
         	print '\t' + prompt + '\n'
@@ -118,19 +116,20 @@ class FirmwareSnaps(object):
 		return
 
 	def plotAccum(self):
+		freqlen = 300
 		# Generates a plot stream from read_avgIQ_snap(). To view, run plotAvgIQ.py in a separate terminal
 		fig = plt.figure(num= None, figsize=(20,12))
 		#plt.suptitle('Averaged FFT, Accum. Frequency = ' + str(self.accum_freq), fontsize=20)
 		plot1 = fig.add_subplot(111)
-		line1, = plot1.plot(np.arange(1024),np.zeros(1024), '#FF4500')
+		line1, = plot1.plot(np.arange(freqlen),np.zeros(freqlen), '#FF4500')
 		line1.set_linestyle('None')
 		line1.set_marker('.')
 		plt.xlabel('Channel #',fontsize = 20)
-		plt.ylabel('Raw amplitude',fontsize = 20)
-		plt.xticks(np.arange(0,1023,4))
+		plt.ylabel('dBm',fontsize = 20)
+		plt.xlim(0,freqlen)
+		plt.xticks(np.arange(0,freqlen))
+		#plt.ylim((-10, -50))
 		#plt.yticks(np.arange(-100, 0, 1))
-		plt.xlim(0,1023)
-		#plt.ylim((-60, -50))
 		plt.grid()
 		plt.tight_layout()
 		plt.show(block = False)
@@ -140,12 +139,18 @@ class FirmwareSnaps(object):
 			I, Q = self.read_accum_snap()
 			#mags = 20*np.log10((np.sqrt(I[:1000]**2 + Q[:1000]**2)))
 			mags = np.sqrt(I**2 + Q**2)
-			#mags = np.concatenate((mags[len(mags)/2.:],mags[:len(mags)/2.]))
-			#mags /= (( 2**19 - 1)/1024)
-			#mags /= (2**13 -1)
-			#plt.ylim((np.min(I[:1000]),np.max(I[:1000])))
-			plt.ylim((np.min(mags),np.max(mags)+0.1))
-			#line1.set_ydata(I[:1000])
+			mags = mags[2:freqlen + 2]
+			# put into rf frequency order
+			#mags = np.concatenate((mags[freqlen/2.:freqlen],mags[:freqlen/2.], mags[freqlen:]))
+			# divide by number of accumulations
+			mags /= (( 2**19 )/1024) 
+			# put into mV
+		        mags = 1000. * (mags/(2**15 - 1)) 	
+			# put into dBm
+			mags = 20.*np.log10(mags) - 47.
+			#plt.ylim((np.min(mags) - 1, 0.))
+			#plt.ylim((np.min(mags),np.max(mags)+.1))
+			plt.ylim((np.min(mags[mags != (-np.inf)]) - 0.1,np.max(mags[mags != -(np.inf)]) + 0.1))
 			line1.set_ydata(mags)
 			plt.draw()
 			count += 1
@@ -154,16 +159,15 @@ class FirmwareSnaps(object):
 
 	def plotFFT(self):
 		# Generates plot of the FFT output. 
-		fig = plt.figure(num= None, figsize=(20,12), dpi=80, facecolor='w', edgecolor='w')
+		fig = plt.figure(num= None, figsize=(22,12), dpi=80, facecolor='w', edgecolor='w')
 		plot1 = fig.add_subplot(111)
-		line1, = plot1.plot( np.arange(0,1024), np.zeros(1024), '#FF4500')
+		line1, = plot1.plot( np.arange(0,512,0.5), np.zeros(1024), '#FF4500')
 		#line1.set_linestyle('None')
 		#line1.set_marker('.')
-		plt.xlabel('bin index',fontsize = 20)
+		plt.xlabel('freq [MHz]',fontsize = 20)
 		plt.ylabel('Amplitude [mV]',fontsize = 20)
-		plt.title('Pre-DDS FFT',fontsize = 20)
 		plt.xticks(np.arange(0,1024,10))
-		plt.xlim((0,1024))
+		plt.xlim((0,512))
 		#plt.ylim((0,30))
 		plt.tight_layout()
 		plt.grid()
@@ -187,7 +191,8 @@ class FirmwareSnaps(object):
 			fft_mags *= 1000. # put into mV
 			#fft_mags = 10.**(fft_mags/10.)
 			plt.ylim((0,np.max(fft_mags)))
-			line1.set_ydata((fft_mags))
+			line1.set_ydata(fft_mags)
+			plt.yticks(np.arange(0,np.max(fft_mags),0.1))
 			plt.draw()
 			#plt.savefig('/home/user1/blastfirmware/images/' + 'fft' + str(int(count)) + '.png', dpi=fig.dpi)
 			count += 1
